@@ -1,0 +1,163 @@
+import bcrypt from "bcryptjs";
+import User  from "../models/user.js";
+import {
+  generateAccessToken,
+  generateRefreshToken,
+} from "../utils/generateToken.js";
+
+export const register = async (req, res) => {
+  try {
+    const { name, role, password } = req.body;
+
+    if (!name || !password) {
+      return res.status(400).json({
+        message: "Name and password are required",
+      });
+    }
+
+    const existingUser = await User.findOne({ name });
+
+    if (existingUser) {
+      return res.status(409).json({
+        message: "User already exists",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = await User.create({
+      name,
+      role: role || "employee",
+      password: hashedPassword,
+    });
+
+    return res.status(201).json({
+      message: "User registered successfully",
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        role: newUser.role,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Registration failed",
+      error: error.message,
+    });
+  }
+};
+
+export const login = async (req, res) => {
+  try {
+    const { name, password } = req.body;
+
+    if (!name || !password) {
+      return res.status(400).json({
+        message: "Name and password are required",
+      });
+    }
+
+    const user = await User.findOne({ name });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        message: "Invalid credentials",
+      });
+    }
+
+    const accessToken = await generateAccessToken(user._id);
+    const refreshToken = await generateRefreshToken(user._id);
+
+    return res.status(200).json({
+      message: "Login successful",
+      user: {
+        id: user._id,
+        name: user.name,
+        role: user.role,
+      },
+      tokens: {
+        accessToken,
+        refreshToken,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Login failed",
+      error: error.message,
+    });
+  }
+};
+
+export const removeUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deletedUser = await User.findByIdAndDelete(id);
+
+    if (!deletedUser) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "User removed successfully",
+      user: deletedUser,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to remove user",
+      error: error.message,
+    });
+  }
+};
+
+export const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, role, password } = req.body;
+
+    const updateData = {};
+
+    if (name) updateData.name = name;
+    if (role) updateData.role = role;
+
+    if (password) {
+      updateData.password = await bcrypt.hash(password, 10);
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "User updated successfully",
+      user: {
+        id: updatedUser._id,
+        name: updatedUser.name,
+        role: updatedUser.role,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to update user",
+      error: error.message,
+    });
+  }
+};
