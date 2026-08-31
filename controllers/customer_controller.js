@@ -6,7 +6,7 @@ export const getAllCustomersController = async (req, res) => {
 
     return res.status(200).json({
       message: "All customers fetched successfully",
-      customers,
+      data: customers,
     });
   } catch (error) {
     return res.status(500).json({
