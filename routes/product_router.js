@@ -5,9 +5,11 @@ import {
   updateProductController,
   removeProductController,
 } from "../controllers/product_controller.js";
+import authMiddleware from "../middleware/auth_middleware.js";
 
 const productRouter = express.Router();
 
+productRouter.use(authMiddleware);
 productRouter.get("/", getAllProductsController);
 productRouter.post("/", newProductController);
 productRouter.put("/:id", updateProductController);
