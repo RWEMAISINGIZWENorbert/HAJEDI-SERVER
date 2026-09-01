@@ -37,7 +37,7 @@ export const newSaleController = async (req, res) => {
 
              if(!product){
                 return res.status(404).json({ 
-                msg: `Product not found: ${item.productId}`,
+                message: `Product not found: ${item.productId}`,
                 productId: item.productId,
                 error: true
              });
@@ -45,10 +45,18 @@ export const newSaleController = async (req, res) => {
            
            if(!item.quantity || !item.price || !item.totalAmount){
             return res.status(400).json({
-                msg: "Please Provide Quantity and Price"
+                message: "Please Provide Quantity and Price"
              });
            } 
-          
+           
+           if(product.quantityInstock < item.quantity){
+            return res.status(400).json({
+                message: `Insufficient stock for product ${product.name}. Available quantity: ${product.quantityInstock}`,
+                error: true,
+                availableQuantity: product.quantityInstock
+             });
+           }
+
            product.quantityInstock -= item.quantity;
            await product.save();
            const itemTotal = product.sellingPrice * item.quantity;
@@ -95,7 +103,7 @@ export const newSaleController = async (req, res) => {
         }
          
          return res.status(200).json({
-            msg: "New Sale recorded succesffully",
+            message: "New Sale recorded succesffully",
             error: false,
             data: finalSale    
         });

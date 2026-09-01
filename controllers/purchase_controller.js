@@ -41,10 +41,10 @@ export const newPurchaseController = async (req, res) => {
             let itemCost = item.cost;
             if(!product){
                 return res.status(404).json({ 
-                msg: `Product not found: ${item.productId}`,
-                productId: item.productId,
-                error: true
-             });
+                  message: `Product not found: ${item.productId}`,
+                  productId: item.productId,
+                  error: true
+              });
             }
 
               if(!item.quantity || !item.totalCost){
@@ -66,6 +66,7 @@ export const newPurchaseController = async (req, res) => {
               await product.save();
               totalAmount += item.totalCost;
               totalItems += 1;
+              
               purchaseItems.push({
                 productId: item.productId,
                 quantity: item.quantity,

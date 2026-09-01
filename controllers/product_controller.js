@@ -81,11 +81,6 @@ export const updateProductController = async (req, res) => {
       quantityInstock,
     } = req.body;
 
-    if (!hasUpdateData) {
-      return res.status(400).json({
-        message: "Provide at least one field to update",
-      });
-    }
 
     const updateData = {};
     if(name) updateData.name = name;
