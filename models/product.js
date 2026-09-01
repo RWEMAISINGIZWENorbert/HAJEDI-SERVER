@@ -27,7 +27,7 @@ const productSchema = new mongoose.Schema({
      },
      boxSize:{
         type: Number,
-        required: true
+        default: null
      },
      quantityInstock: { 
         type: Number,

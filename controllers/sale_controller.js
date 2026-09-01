@@ -74,13 +74,13 @@ export const newSaleController = async (req, res) => {
         
         const saleId = sale._id.toString();
 
-        const updatedItems = newSale.items.map(item => ({
+        const updatedItems = sale.items.map(item => ({
           ...item.toObject(),
           saleId
          }));
 
-          const finalSale = await saleModel.findByIdAndUpdate(
-                newSale._id,
+          const finalSale = await Sale.findByIdAndUpdate(
+                sale._id,
                 { items: updatedItems },
                 { new: true }
            ); 
@@ -89,7 +89,7 @@ export const newSaleController = async (req, res) => {
 
         if(!finalSale){
             return res.status(400).json({
-                msg: "Unnkow Error occured please try again",
+                msg: "Unknown Error occurred please try again",
                 error: true
             })
         }

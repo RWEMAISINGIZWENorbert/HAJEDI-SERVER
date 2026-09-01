@@ -10,11 +10,15 @@ const itemSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    price: { 
+    cost: { 
         type: Number,
         required: true
     },
-    saleRecordId: {
+    totalCost: {
+        type: Number,
+        required: true
+    },
+    purchaseId: {
         type: String,
         default: ""
     }
@@ -27,6 +31,14 @@ const purchaseSchema = new mongoose.Schema({
         required: true
     },
     items: [itemSchema],
+    totalItems: {
+        type: Number,
+        required: true
+     },
+     totalAmount: {
+        type: Number,
+        required: true
+     },
     supplierId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",

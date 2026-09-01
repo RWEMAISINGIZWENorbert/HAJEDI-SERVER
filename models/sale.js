@@ -18,7 +18,7 @@ const itemSchema = new mongoose.Schema({
         type: Number,
         required: true
     },
-    saleRecordId: {
+    saleId: {
         type: String,
         default: ""
     }
