@@ -36,7 +36,7 @@ export const newPurchaseController = async (req, res) => {
 
         for(let item of items){
             
-            const product = await Product.find(item.productId);
+            const product = await Product.findById(item.productId);
             let boxSize;
             let itemCost = item.cost;
             if(!product){
@@ -90,7 +90,7 @@ export const newPurchaseController = async (req, res) => {
                   ...item.toObject(),
                   purchaseId
                  }));     
-        const finalPurchase= await Sale.findByIdAndUpdate(
+        const finalPurchase= await Purchase.findByIdAndUpdate(
                         purchase._id,
                         { items: updatedItems },
                         { new: true }

@@ -113,7 +113,7 @@ export const cancelSaleController = async (req, res) => {
         
         const { saleId, productId } = req.body;
 
-        const sale = await Sale.find({_id:saleId});
+        const sale = await Sale.findById(saleId);
 
         if(!sale){
              return res.status(400).json({

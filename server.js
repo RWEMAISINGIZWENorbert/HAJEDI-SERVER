@@ -6,6 +6,7 @@ import authRouter from "./routes/auth_router.js";
 import customerRouter from "./routes/customer_router.js";
 import supplierRouter from "./routes/supplier_router.js";
 import productRouter from "./routes/product_router.js";
+import transactionRouter from "./routes/transaction_router.js";
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.use("/auth", authRouter);
 app.use("/customer", customerRouter);
 app.use("/supplier", supplierRouter);
 app.use("/product", productRouter);
+app.use("/transaction", transactionRouter);
 
 const PORT = process.env.PORT || 5000;
 
