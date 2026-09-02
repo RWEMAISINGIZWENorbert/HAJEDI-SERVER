@@ -4,10 +4,12 @@ import {
   login,
   removeUser,
   updateUser,
+  getAllUsers,
 } from "../controllers/auth_controller.js";
 
 const authRouter = express.Router();
 
+authRouter.get("/users", getAllUsers);
 authRouter.post("/register", register);
 authRouter.post("/login", login);
 authRouter.delete("/users/:id", removeUser);

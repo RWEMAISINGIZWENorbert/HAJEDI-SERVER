@@ -5,6 +5,28 @@ import {
   generateRefreshToken,
 } from "../utils/generateToken.js";
 
+
+export const getAllUsers = async (req, res) => {
+     
+    try{
+
+      //  const users = await User.find({}, { password: 0 }); // Exclude password field
+       const users = await User.find({}, { password: 0 });
+
+       return res.status(200).json({
+          message: "Users fetched successfully",
+          data: users,
+       });
+
+    }catch(error){
+       return res.status(500).json({
+         message: "Failed to fetch users",
+         error: error.message,
+       });
+    }
+
+}
+
 export const register = async (req, res) => {
   try {
     const { name, role, password } = req.body;
