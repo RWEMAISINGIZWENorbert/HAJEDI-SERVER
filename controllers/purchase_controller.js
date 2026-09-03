@@ -56,10 +56,10 @@ export const newPurchaseController = async (req, res) => {
              if((item.purchaseMethod === "crate" && product.unitsPerPackage) || (item.purchaseMethod === "packet" && product.unitsPerPackage)){ 
                  unitsPerPackage = product.unitsPerPackage;
                  itemCost = item.totalCost / unitsPerPackage;
-                 product.quantityInstock += item.quantity * unitsPerPackage;
+                 product.quantityInStock += item.quantity * unitsPerPackage;
               }else if(item.purchaseMethod === "unit" || item.purchaseMethod === "kg"){
                  itemCost = item.totalCost / item.quantity;
-                 product.quantityInstock += item.quantity;
+                 product.quantityInStock += item.quantity;
               }
 
 
@@ -166,7 +166,7 @@ export const cancelPurchaseController = async (req, res) => {
         ? item.quantity * product.unitsPerPackage
         : item.quantity;
 
-    product.quantityInstock = Math.max(0, product.quantityInstock - stockToRemove);
+    product.quantityInStock = Math.max(0, product.quantityInStock - stockToRemove);
     await product.save();
 
     purchase.totalAmount -= item.totalCost;

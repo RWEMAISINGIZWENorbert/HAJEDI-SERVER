@@ -49,15 +49,15 @@ export const newSaleController = async (req, res) => {
              });
            } 
            
-           if(product.quantityInstock < item.quantity){
+           if(product.quantityInStock < item.quantity){
             return res.status(400).json({
-                message: `Insufficient stock for product ${product.name}. Available quantity: ${product.quantityInstock}`,
+                message: `Insufficient stock for product ${product.name}. Available quantity: ${product.quantityInStock}`,
                 error: true,
-                availableQuantity: product.quantityInstock
+                availableQuantity: product.quantityInStock
              });
            }
 
-           product.quantityInstock -= item.quantity;
+           product.quantityInStock -= item.quantity;
            await product.save();
            const itemTotal = product.sellingPrice * item.quantity;
            totalAmount += itemTotal;
@@ -142,7 +142,7 @@ export const cancelSaleController = async (req, res) => {
         const item = sale.items[itemIndex];
         const product = await Product.findOne({ _id: productId, });
 
-        product.quantityInstock += item.quantity;
+        product.quantityInStock += item.quantity;
         await product.save();
         sale.totalAmount -= item.totalAmount
         sale.items.splice(itemIndex, 1);

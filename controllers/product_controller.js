@@ -27,7 +27,7 @@ export const newProductController = async (req, res) => {
       purchaseCost,
       sellingPrice,
       unitsPerPackage,
-      quantityInstock,
+      quantityInStock,
     } = req.body;
 
     if (
@@ -35,10 +35,10 @@ export const newProductController = async (req, res) => {
       purchaseCost === undefined ||
       sellingPrice === undefined ||
       unitsPerPackage === undefined ||
-      quantityInstock === undefined
+      quantityInStock === undefined
     ) {
       return res.status(400).json({
-        message: "Name, purchaseCost, sellingPrice, unitsPerPackage and quantityInstock are required",
+        message: "Name, purchaseCost, sellingPrice, unitsPerPackage and quantityInStock are required",
       });
     }
 
@@ -50,7 +50,7 @@ export const newProductController = async (req, res) => {
       purchaseCost,
       sellingPrice,
       unitsPerPackage,
-      quantityInstock,
+      quantityInStock,
     });
 
     return res.status(201).json({
@@ -78,7 +78,7 @@ export const updateProductController = async (req, res) => {
       purchaseCost,
       sellingPrice,
       unitsPerPackage,
-      quantityInstock,
+      quantityInStock,
     } = req.body;
 
 
@@ -90,7 +90,7 @@ export const updateProductController = async (req, res) => {
     if(purchaseCost !== undefined) updateData.purchaseCost = purchaseCost;
     if(sellingPrice !== undefined) updateData.sellingPrice = sellingPrice;
     if(unitsPerPackage !== undefined) updateData.unitsPerPackage = unitsPerPackage;
-    if(quantityInstock !== undefined) updateData.quantityInstock = quantityInstock;   
+    if(quantityInStock !== undefined) updateData.quantityInStock = quantityInStock;   
 
     const product = await Product.findByIdAndUpdate(id, updateData, {
       new: true,
