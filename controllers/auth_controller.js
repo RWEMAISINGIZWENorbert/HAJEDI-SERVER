@@ -45,7 +45,8 @@ export const register = async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = password; // Store password as plain text for now (not recommended for production)
 
     const newUser = await User.create({
       name,
@@ -87,7 +88,8 @@ export const login = async (req, res) => {
       });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    // const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = password === user.password;
 
     if (!isMatch) {
       return res.status(401).json({
@@ -153,7 +155,8 @@ export const updateUser = async (req, res) => {
     if (role) updateData.role = role;
 
     if (password) {
-      updateData.password = await bcrypt.hash(password, 10);
+      // updateData.password = await bcrypt.hash(password, 10);
+      updateData.password = password; // Store password as plain text for now (not recommended for production)
     }
 
     const updatedUser = await User.findByIdAndUpdate(
@@ -174,6 +177,7 @@ export const updateUser = async (req, res) => {
         id: updatedUser._id,
         name: updatedUser.name,
         role: updatedUser.role,
+        password: updatedUser.password, // Include password in the response (not recommended for production)
       },
     });
   } catch (error) {
