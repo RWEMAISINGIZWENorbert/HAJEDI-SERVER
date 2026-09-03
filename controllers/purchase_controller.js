@@ -37,7 +37,7 @@ export const newPurchaseController = async (req, res) => {
         for(let item of items){
             
             const product = await Product.findById(item.productId);
-            let boxSize;
+            let unitsPerPackage;
             let itemCost = item.cost;
             if(!product){
                 return res.status(404).json({ 
@@ -53,10 +53,10 @@ export const newPurchaseController = async (req, res) => {
                 });
                }
               
-             if((item.purchaseMethod === "crate" && product.boxSize) || (item.purchaseMethod === "packet" && product.boxSize)){ 
-                 boxSize = product.boxSize;
-                 itemCost = item.totalCost / boxSize;
-                 product.quantityInstock += item.quantity * boxSize;
+             if((item.purchaseMethod === "crate" && product.unitsPerPackage) || (item.purchaseMethod === "packet" && product.unitsPerPackage)){ 
+                 unitsPerPackage = product.unitsPerPackage;
+                 itemCost = item.totalCost / unitsPerPackage;
+                 product.quantityInstock += item.quantity * unitsPerPackage;
               }else if(item.purchaseMethod === "unit" || item.purchaseMethod === "kg"){
                  itemCost = item.totalCost / item.quantity;
                  product.quantityInstock += item.quantity;
@@ -161,9 +161,9 @@ export const cancelPurchaseController = async (req, res) => {
     }
 
     const stockToRemove =
-      product.boxSize &&
+      product.unitsPerPackage &&
       ["crate", "packet"].includes(product.purchaseMethod)
-        ? item.quantity * product.boxSize
+        ? item.quantity * product.unitsPerPackage
         : item.quantity;
 
     product.quantityInstock = Math.max(0, product.quantityInstock - stockToRemove);

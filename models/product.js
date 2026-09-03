@@ -1,6 +1,12 @@
 import mongoose from "mongoose";
 
 const productSchema = new mongoose.Schema({
+     clientId: {
+       type: String,
+       required: true,
+       unique: true,
+       index: true,
+     },
      name: {
         type: String,
         required: true
@@ -25,7 +31,7 @@ const productSchema = new mongoose.Schema({
         type: Number,
         required: true
      },
-     boxSize:{
+     unitsPerPackage:{
         type: Number,
         default: null
      },
@@ -34,7 +40,7 @@ const productSchema = new mongoose.Schema({
         required: true
      }
 },{
-    timeStamps: true
+    timestamps: true
 });
 
 const Product = mongoose.model("Product", productSchema);
