@@ -177,6 +177,7 @@ export const updateUser = async (req, res) => {
       message: "User updated successfully",
       user: {
         id: updatedUser._id,
+        clientId: updatedUser.clientId,
         name: updatedUser.name,
         role: updatedUser.role,
         password: updatedUser.password, // Include password in the response (not recommended for production)
