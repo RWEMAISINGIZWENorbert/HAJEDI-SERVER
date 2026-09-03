@@ -29,13 +29,13 @@ export const getAllUsers = async (req, res) => {
 
 export const register = async (req, res) => {
   try {
-    const { name, role, password } = req.body;
+    const { clientId, name, role, password } = req.body;
 
-    if (!name || !password) {
-      return res.status(400).json({
-        message: "Name and password are required",
-      });
-    }
+   if (!clientId || !name || !password) {
+  return res.status(400).json({
+    message: "clientId, name and password are required",
+  });
+}
 
     const existingUser = await User.findOne({ name });
 
@@ -49,6 +49,7 @@ export const register = async (req, res) => {
     const hashedPassword = password; // Store password as plain text for now (not recommended for production)
 
     const newUser = await User.create({
+      clientId,
       name,
       role: role || "employee",
       password: hashedPassword,
@@ -58,6 +59,7 @@ export const register = async (req, res) => {
       message: "User registered successfully",
       user: {
         id: newUser._id,
+        clientId: newUser.clientId,
         name: newUser.name,
         role: newUser.role,
       },
@@ -124,7 +126,7 @@ export const removeUser = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const deletedUser = await User.findByIdAndDelete(id);
+    const deletedUser = await User.findOneAndDelete({ clientId: id });
 
     if (!deletedUser) {
       return res.status(404).json({
@@ -159,8 +161,8 @@ export const updateUser = async (req, res) => {
       updateData.password = password; // Store password as plain text for now (not recommended for production)
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      id,
+    const updatedUser = await User.findOneAndUpdate(
+      {clientId: id},
       updateData,
       { new: true }
     );
