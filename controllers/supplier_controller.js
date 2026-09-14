@@ -1,6 +1,5 @@
 import Supplier from "../models/supplier.js";
 
-
 export const getAllSuppliersController = async (req, res) => {
   try {
     const suppliers = await Supplier.find({ deletedAt: null });
