@@ -2,6 +2,12 @@ import mongoose from "mongoose";
 
 const supplierSchema = new mongoose.Schema(
   {
+    clientId: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
     name: {
       type: String,
       required: true,
@@ -10,6 +16,15 @@ const supplierSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+    },
+    address: {
+      type: String,
+      default: null,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
     },
   },
   {
