@@ -1,226 +1,236 @@
+import mongoose from "mongoose";
 import Sale from "../models/sale.js";
-import  Product from "../models/product.js";
+import Product from "../models/product.js";
+import Customer from "../models/customer.js";
 
-export const getAllSalesController = async (req, res) => {
+export const createSale = async (req, res) => {
+  const session = await mongoose.startSession();
+
   try {
-    const sales = await Sale.find().populate("userId customerId items.productId");
+    const { clientId, customerClientId, paymentMethod, items } = req.body;
+    const userId = req.userId;
 
-    return res.status(200).json({
-      message: "All sales fetched successfully",
-      data: sales,
+    if (!clientId || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        message: "clientId and items array are required",
+      });
+    }
+
+    let createdSale;
+
+    await session.withTransaction(async () => {
+      // Check for duplicate sale
+      const existingSale = await Sale.findOne({ clientId }).session(session);
+
+      if (existingSale) {
+        createdSale = existingSale;
+        return;
+      }
+
+      // Resolve customer if provided
+      let customerId = null;
+      if (customerClientId) {
+        const customer = await Customer.findOne({
+          clientId: customerClientId,
+          deletedAt: null,
+        }).session(session);
+
+        if (!customer) {
+          throw new Error(`Customer not found: ${customerClientId}`);
+        }
+        customerId = customer._id;
+      }
+
+      let totalAmount = 0;
+      const saleItems = [];
+
+      for (const item of items) {
+        const product = await Product.findOne({
+          clientId: item.productClientId,
+          deletedAt: null,
+        }).session(session);
+
+        if (!product) {
+          throw new Error(`Product not found: ${item.productClientId}`);
+        }
+
+        const quantity = Number(item.quantity);
+
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          throw new Error("Invalid sale quantity");
+        }
+
+        const unitPrice = product.sellingPrice;
+        const totalItemAmount = unitPrice * quantity;
+
+        // Atomically decrease stock
+        const updatedProduct = await Product.findOneAndUpdate(
+          {
+            clientId: item.productClientId,
+            deletedAt: null,
+            quantityInStock: { $gte: quantity },
+          },
+          {
+            $inc: { quantityInStock: -quantity },
+          },
+          {
+            new: true,
+            session,
+          },
+        );
+
+        if (!updatedProduct) {
+          throw new Error(`Insufficient stock for ${product.name}`);
+        }
+
+        totalAmount += totalItemAmount;
+
+        saleItems.push({
+          productId: product._id,
+          productClientId: product.clientId,
+          quantity,
+          price: unitPrice,
+          totalAmount: totalItemAmount,
+        });
+      }
+
+      [createdSale] = await Sale.create(
+        [
+          {
+            clientId,
+            userId,
+            customerId,
+            customerClientId,
+            items: saleItems,
+            totalItems: saleItems.length,
+            totalAmount,
+            paymentMethod,
+            originalPaymentMethod: paymentMethod,
+          },
+        ],
+        { session },
+      );
+    });
+
+    return res.status(201).json({
+      message: "Sale created successfully",
+      data: createdSale,
     });
   } catch (error) {
+    console.error("Sale creation error:", error);
+    return res.status(400).json({
+      message: error.message || "Failed to create sale",
+    });
+  } finally {
+    await session.endSession();
+  }
+};
+
+export const getSaleChanges = async (req, res) => {
+  try {
+    const { since } = req.query;
+    const query = { deletedAt: null };
+
+    if (since) {
+      query.updatedAt = { $gt: new Date(since) };
+    }
+
+    const sales = await Sale.find(query)
+      .populate("userId", "name clientId")
+      .populate("customerId", "name clientId")
+      .sort({ updatedAt: 1 });
+
+    const created = [];
+    const updated = [];
+    const voided = [];
+
+    for (const sale of sales) {
+      if (sale.voidedAt) {
+        voided.push({
+          clientId: sale.clientId,
+          voidedAt: sale.voidedAt,
+          voidReason: sale.voidReason,
+        });
+      } else if (since && sale.createdAt >= new Date(since)) {
+        created.push(sale);
+      } else {
+        updated.push(sale);
+      }
+    }
+
+    const lastSale = sales[sales.length - 1];
+    const nextCursor = lastSale ? lastSale.updatedAt.toISOString() : new Date().toISOString();
+
+    return res.status(200).json({
+      data: {
+        created,
+        updated,
+        voided,
+      },
+      nextCursor,
+    });
+  } catch (error) {
+    console.error("Get sale changes error:", error);
     return res.status(500).json({
-      message: "Failed to fetch sales",
-      error: error.message,
+      message: error.message || "Failed to fetch sale changes",
     });
   }
 };
 
-export const newSaleController = async (req, res) => {
-     try{
-        
-        const userId = req.userId;
+export const voidSale = async (req, res) => {
+  const session = await mongoose.startSession();
 
-        const {
-           items,
-           customerId,
-           paymentMethod
-        }  = req.body
-        
-        let saleItems = [];
-        let totalItems = 0;
-        let totalAmount = 0;
-
-        for(let item of items){
-            const product = await Product.find(item.productId);
-
-             if(!product){
-                return res.status(404).json({ 
-                message: `Product not found: ${item.productId}`,
-                productId: item.productId,
-                error: true
-             });
-            }
-           
-           if(!item.quantity || !item.price || !item.totalAmount){
-            return res.status(400).json({
-                message: "Please Provide Quantity and Price"
-             });
-           } 
-           
-           if(product.quantityInStock < item.quantity){
-            return res.status(400).json({
-                message: `Insufficient stock for product ${product.name}. Available quantity: ${product.quantityInStock}`,
-                error: true,
-                availableQuantity: product.quantityInStock
-             });
-           }
-
-           product.quantityInStock -= item.quantity;
-           await product.save();
-           const itemTotal = product.sellingPrice * item.quantity;
-           totalAmount += itemTotal;
-           totalItems += 1;
-           saleItems.push({
-              product: item.productId,
-              quantity: item.quantity,
-              price: item.price,
-              totalAmount: itemTotal
-           })      
-        }
-
-        const sale = await Sale.create({
-            userId: userId,
-            items: saleItems,
-            totalItems: totalItems,
-            totalAmount: totalAmount,
-            customerId: customerId,
-            paymentMethod: paymentMethod,
-            originalPaymentMethod: paymentMethod
-        });
-        
-        const saleId = sale._id.toString();
-
-        const updatedItems = sale.items.map(item => ({
-          ...item.toObject(),
-          saleId
-         }));
-
-          const finalSale = await Sale.findByIdAndUpdate(
-                sale._id,
-                { items: updatedItems },
-                { new: true }
-           ); 
-
-        await finalSale.save(); 
-
-        if(!finalSale){
-            return res.status(400).json({
-                msg: "Unknown Error occurred please try again",
-                error: true
-            })
-        }
-         
-         return res.status(200).json({
-            message: "New Sale recorded succesffully",
-            error: false,
-            data: finalSale    
-        });
-
-     }catch(error){
-       return res.status(500).json({
-         message: "Failed to Create sale",
-         error: error.message, 
-       });
-     }
-}
-
-export const cancelSaleController = async (req, res) => {
-    try{
-        
-        const { saleId, productId } = req.body;
-
-        const sale = await Sale.findById(saleId);
-
-        if(!sale){
-             return res.status(400).json({
-                message: "Sale Record not found",
-                error: true
-             });
-        }
-
-        const itemIndex = sale.items.findIndex(item => item.productId.toString() === productId);
-
-        if (itemIndex === -1) {
-            return res.status(404).json({
-                msg: `Product with id ${productId} not found in this sale record`,
-                error: true
-            });
-        }
-
-        const item = sale.items[itemIndex];
-        const product = await Product.findOne({ _id: productId, });
-
-        product.quantityInStock += item.quantity;
-        await product.save();
-        sale.totalAmount -= item.totalAmount
-        sale.items.splice(itemIndex, 1);
-        sale.totalItems = sale.items.length;
-
-        if (sale.items.length === 0) {
-            await Sale.findByIdAndDelete(saleId);
-
-            return res.status(200).json({
-                msg: `Sale record ${saleId} cancelled and deleted (no items left)` ,
-                error: false
-            });
-
-        } else {
-            await sale.save();
-            return res.status(200).json({
-                msg: `Product removed from sale and quantities restored`,
-                error: false,
-                data: sale
-            });
-        }
-
-    }catch(error){
-         return res.status(500).json({
-            message: "Failed to cancel Sale",
-            error: error.message, 
-         })
-    }
-}
-
-export const payCreditSaleController = async (req, res) => {
   try {
-    const { saleId, paymentMethod } = req.body;
+    const { clientId } = req.params;
+    const { voidReason } = req.body;
+    const userId = req.userId;
 
-    if (!saleId) {
-      return res.status(400).json({
-        message: "Sale ID is required",
-        error: true,
-      });
-    }
+    await session.withTransaction(async () => {
+      const sale = await Sale.findOne({ clientId, deletedAt: null }).session(session);
 
-    if (!paymentMethod) {
-      return res.status(400).json({
-        message: "paymentMethod is required",
-        error: true,
-      });
-    }
+      if (!sale) {
+        throw new Error("Sale not found");
+      }
 
-    const sale = await Sale.findById(saleId);
+      if (sale.voidedAt) {
+        throw new Error("Sale already voided");
+      }
 
-    if (!sale) {
-      return res.status(404).json({
-        message: "Sale record not found",
-        error: true,
-      });
-    }
+      // Restore stock for each item
+      for (const item of sale.items) {
+        await Product.findOneAndUpdate(
+          {
+            clientId: item.productClientId,
+            deletedAt: null,
+          },
+          {
+            $inc: { quantityInStock: item.quantity },
+          },
+          { session },
+        );
+      }
 
-    // check whether the incoming payment method is credit
-    if (paymentMethod !== "credit") {
-      return res.status(400).json({
-        message: "This sale is not a credit payment",
-        error: true,
-      });
-    }
-
-    sale.paymentMethod = paymentMethod;
-    await sale.save();
+      // Mark sale as voided
+      await Sale.findOneAndUpdate(
+        { clientId },
+        {
+          voidedAt: new Date(),
+          voidedBy: userId,
+          voidReason,
+        },
+        { session },
+      );
+    });
 
     return res.status(200).json({
-      message: "Credit payment processed successfully",
-      error: false,
-      data: sale,
+      message: "Sale voided successfully",
     });
-    
   } catch (error) {
-    return res.status(500).json({
-      message: "Failed to process credit payment",
-      error: error.message,
+    console.error("Void sale error:", error);
+    return res.status(400).json({
+      message: error.message || "Failed to void sale",
     });
+  } finally {
+    await session.endSession();
   }
 };

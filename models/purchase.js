@@ -1,50 +1,111 @@
 import mongoose from "mongoose";
 
-const itemSchema = new mongoose.Schema({
+const purchaseItemSchema = new mongoose.Schema(
+  {
     productId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Product",
-        required: true
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
     },
-    quantity: { 
-        type: Number,
-        required: true
+
+    productClientId: {
+      type: String,
+      required: true,
     },
-    cost: { 
-        type: Number,
-        required: true
+
+    quantity: {
+      type: Number,
+      required: true,
+      min: 1,
     },
+
+    purchaseCost: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
     totalCost: {
-        type: Number,
-        required: true
+      type: Number,
+      required: true,
+      min: 0,
     },
-    purchaseId: {
-        type: String,
-        default: ""
-    }
-},{_id: false,});
+  },
+  { _id: false },
+);
 
-const purchaseSchema = new mongoose.Schema({
+const purchaseSchema = new mongoose.Schema(
+  {
+    clientId: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
+
     userId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
-    items: [itemSchema],
-    totalItems: {
-        type: Number,
-        required: true
-     },
-     totalAmount: {
-        type: Number,
-        required: true
-     },
-    supplierId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true 
-    }
-},{ timeStamps: true });
 
-const purchaseModel = mongoose.model('Purchase', purchaseSchema);
-export default purchaseModel
+    supplierId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Supplier",
+    },
+
+    supplierClientId: {
+      type: String,
+    },
+
+    items: {
+      type: [purchaseItemSchema],
+      required: true,
+      validate: (items) => items.length > 0,
+    },
+
+    totalItems: {
+      type: Number,
+      required: true,
+    },
+
+    totalCost: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "mobile", "credit"],
+      default: "cash",
+    },
+
+    voidedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+
+    voidedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    voidReason: {
+      type: String,
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
+
+const purchaseModel = mongoose.model("Purchase", purchaseSchema);
+export default purchaseModel;

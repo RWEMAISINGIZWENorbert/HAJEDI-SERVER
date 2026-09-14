@@ -1,198 +1,228 @@
+import mongoose from "mongoose";
 import Purchase from "../models/purchase.js";
 import Product from "../models/product.js";
+import Supplier from "../models/supplier.js";
 
-export const getAllpurchasesController = async (req, res) => {
-    
-    try{
-          
-        const purchases = await Purchase.find().populate('userId supplierId items.productId');
+export const createPurchase = async (req, res) => {
+  const session = await mongoose.startSession();
 
-        return res.status(200).json({ 
-             message: "All purchases retrieved successfully",
-             data: purchases
-        });
+  try {
+    const { clientId, supplierClientId, paymentMethod, items } = req.body;
+    const userId = req.userId;
 
-    }catch(error){
-        return res.status(500).json({ 
-             message: "Failed to get all purchases",
-             error: error.message,
-        });
+    if (!clientId || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        message: "clientId and items array are required",
+      });
     }
 
-}
+    let createdPurchase;
 
-export const newPurchaseController = async (req, res) => { 
-    try{
-        const userId = req.userId;
+    await session.withTransaction(async () => {
+      // Check for duplicate purchase
+      const existingPurchase = await Purchase.findOne({ clientId }).session(session);
 
-        const {
-            items,
-            supplierId
-        } = req.body;
+      if (existingPurchase) {
+        createdPurchase = existingPurchase;
+        return;
+      }
 
-        let purchaseItems = [];
-        let totalItems = 0;
-        let totalAmount = 0;
+      // Resolve supplier if provided
+      let supplierId = null;
+      if (supplierClientId) {
+        const supplier = await Supplier.findOne({
+          clientId: supplierClientId,
+          deletedAt: null,
+        }).session(session);
 
-        for(let item of items){
-            
-            const product = await Product.findById(item.productId);
-            let unitsPerPackage;
-            let itemCost = item.cost;
-            if(!product){
-                return res.status(404).json({ 
-                  message: `Product not found: ${item.productId}`,
-                  productId: item.productId,
-                  error: true
-              });
-            }
+        if (!supplier) {
+          throw new Error(`Supplier not found: ${supplierClientId}`);
+        }
+        supplierId = supplier._id;
+      }
 
-              if(!item.quantity || !item.totalCost){
-                return res.status(400).json({
-                    msg: "Please Provide Quantity and Price"
-                });
-               }
-              
-             if((item.purchaseMethod === "crate" && product.unitsPerPackage) || (item.purchaseMethod === "packet" && product.unitsPerPackage)){ 
-                 unitsPerPackage = product.unitsPerPackage;
-                 itemCost = item.totalCost / unitsPerPackage;
-                 product.quantityInStock += item.quantity * unitsPerPackage;
-              }else if(item.purchaseMethod === "unit" || item.purchaseMethod === "kg"){
-                 itemCost = item.totalCost / item.quantity;
-                 product.quantityInStock += item.quantity;
-              }
+      let totalCost = 0;
+      const purchaseItems = [];
 
+      for (const item of items) {
+        const product = await Product.findOne({
+          clientId: item.productClientId,
+          deletedAt: null,
+        }).session(session);
 
-              await product.save();
-              totalAmount += item.totalCost;
-              totalItems += 1;
-              
-              purchaseItems.push({
-                productId: item.productId,
-                quantity: item.quantity,
-                cost: itemCost,
-                totalCost: item.totalCost
-              });
-
+        if (!product) {
+          throw new Error(`Product not found: ${item.productClientId}`);
         }
 
+        const quantity = Number(item.quantity);
 
-        const purchase = await Purchase.create({
-            userId: userId,
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          throw new Error("Invalid purchase quantity");
+        }
+
+        const purchaseCost = Number(item.purchaseCost) || product.purchaseCost;
+        const totalItemCost = purchaseCost * quantity;
+
+        // Atomically increase stock
+        await Product.findOneAndUpdate(
+          {
+            clientId: item.productClientId,
+            deletedAt: null,
+          },
+          {
+            $inc: { quantityInStock: quantity },
+          },
+          { session },
+        );
+
+        totalCost += totalItemCost;
+
+        purchaseItems.push({
+          productId: product._id,
+          productClientId: product.clientId,
+          quantity,
+          purchaseCost,
+          totalCost: totalItemCost,
+        });
+      }
+
+      [createdPurchase] = await Purchase.create(
+        [
+          {
+            clientId,
+            userId,
+            supplierId,
+            supplierClientId,
             items: purchaseItems,
-            totalItems: totalItems,
-            totalAmount: totalAmount,
-            supplierId: supplierId
-        });
+            totalItems: purchaseItems.length,
+            totalCost,
+            paymentMethod,
+          },
+        ],
+        { session },
+      );
+    });
 
-
-        const purchaseId = purchase._id.toString();
-        const updatedItems = purchase.items.map(item => ({
-                  ...item.toObject(),
-                  purchaseId
-                 }));     
-        const finalPurchase= await Purchase.findByIdAndUpdate(
-                        purchase._id,
-                        { items: updatedItems },
-                        { new: true }
-                 ); 
-        
-       await finalPurchase.save(); 
-        
-                if(!finalPurchase){
-                    return res.status(400).json({
-                        msg: "Unknown Error occurred please try again",
-                        error: true
-                    })
-                }
-
-        return res.status(201).json({ 
-            message: "Purchase created successfully",
-            data: finalPurchase
-        });
-
-    }catch(error){
-        return res.status(500).json({ 
-             message: "Failed to get all purchases",
-             error: error.message,
-        });
-    }
-}
-
-export const cancelPurchaseController = async (req, res) => {
-  try {
-    const { purchaseId, productId } = req.body;
-
-    if (!purchaseId || !productId) {
-      return res.status(400).json({
-        message: "Purchase ID and Product ID are required",
-        error: true,
-      });
-    }
-
-    const purchase = await Purchase.findById(purchaseId);
-
-    if (!purchase) {
-      return res.status(404).json({
-        message: "Purchase record not found",
-        error: true,
-      });
-    }
-
-    const itemIndex = purchase.items.findIndex(
-      (item) => item.productId.toString() === productId
-    );
-
-    if (itemIndex === -1) {
-      return res.status(404).json({
-        msg: `Product with id ${productId} not found in this purchase record`,
-        error: true,
-      });
-    }
-
-    const item = purchase.items[itemIndex];
-    const product = await Product.findById(productId);
-
-    if (!product) {
-      return res.status(404).json({
-        msg: `Product with id ${productId} not found`,
-        error: true,
-      });
-    }
-
-    const stockToRemove =
-      product.unitsPerPackage &&
-      ["crate", "packet"].includes(product.purchaseMethod)
-        ? item.quantity * product.unitsPerPackage
-        : item.quantity;
-
-    product.quantityInStock = Math.max(0, product.quantityInStock - stockToRemove);
-    await product.save();
-
-    purchase.totalAmount -= item.totalCost;
-    purchase.items.splice(itemIndex, 1);
-    purchase.totalItems = purchase.items.length;
-
-    if (purchase.items.length === 0) {
-      await Purchase.findByIdAndDelete(purchaseId);
-
-      return res.status(200).json({
-        msg: `Purchase record ${purchaseId} cancelled and deleted (no items left)`,
-        error: false,
-      });
-    }
-
-    await purchase.save();
-
-    return res.status(200).json({
-      msg: `Product removed from purchase and stock adjusted`,
-      error: false,
-      data: purchase,
+    return res.status(201).json({
+      message: "Purchase created successfully",
+      data: createdPurchase,
     });
   } catch (error) {
-    return res.status(500).json({
-      message: "Failed to cancel purchase",
-      error: error.message,
+    console.error("Purchase creation error:", error);
+    return res.status(400).json({
+      message: error.message || "Failed to create purchase",
     });
+  } finally {
+    await session.endSession();
+  }
+};
+
+export const getPurchaseChanges = async (req, res) => {
+  try {
+    const { since } = req.query;
+    const query = { deletedAt: null };
+
+    if (since) {
+      query.updatedAt = { $gt: new Date(since) };
+    }
+
+    const purchases = await Purchase.find(query)
+      .populate("userId", "name clientId")
+      .populate("supplierId", "name clientId")
+      .sort({ updatedAt: 1 });
+
+    const created = [];
+    const updated = [];
+    const voided = [];
+
+    for (const purchase of purchases) {
+      if (purchase.voidedAt) {
+        voided.push({
+          clientId: purchase.clientId,
+          voidedAt: purchase.voidedAt,
+          voidReason: purchase.voidReason,
+        });
+      } else if (since && purchase.createdAt >= new Date(since)) {
+        created.push(purchase);
+      } else {
+        updated.push(purchase);
+      }
+    }
+
+    const lastPurchase = purchases[purchases.length - 1];
+    const nextCursor = lastPurchase ? lastPurchase.updatedAt.toISOString() : new Date().toISOString();
+
+    return res.status(200).json({
+      data: {
+        created,
+        updated,
+        voided,
+      },
+      nextCursor,
+    });
+  } catch (error) {
+    console.error("Get purchase changes error:", error);
+    return res.status(500).json({
+      message: error.message || "Failed to fetch purchase changes",
+    });
+  }
+};
+
+export const voidPurchase = async (req, res) => {
+  const session = await mongoose.startSession();
+
+  try {
+    const { clientId } = req.params;
+    const { voidReason } = req.body;
+    const userId = req.userId;
+
+    await session.withTransaction(async () => {
+      const purchase = await Purchase.findOne({ clientId, deletedAt: null }).session(session);
+
+      if (!purchase) {
+        throw new Error("Purchase not found");
+      }
+
+      if (purchase.voidedAt) {
+        throw new Error("Purchase already voided");
+      }
+
+      // Decrease stock for each item
+      for (const item of purchase.items) {
+        await Product.findOneAndUpdate(
+          {
+            clientId: item.productClientId,
+            deletedAt: null,
+            quantityInStock: { $gte: item.quantity },
+          },
+          {
+            $inc: { quantityInStock: -item.quantity },
+          },
+          { session },
+        );
+      }
+
+      // Mark purchase as voided
+      await Purchase.findOneAndUpdate(
+        { clientId },
+        {
+          voidedAt: new Date(),
+          voidedBy: userId,
+          voidReason,
+        },
+        { session },
+      );
+    });
+
+    return res.status(200).json({
+      message: "Purchase voided successfully",
+    });
+  } catch (error) {
+    console.error("Void purchase error:", error);
+    return res.status(400).json({
+      message: error.message || "Failed to void purchase",
+    });
+  } finally {
+    await session.endSession();
   }
 };

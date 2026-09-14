@@ -1,40 +1,33 @@
 import Expense from "../models/expense.js";
 
-export const getAllExpensesController = async (req, res) => {
+export const createExpense = async (req, res) => {
   try {
-    const expenses = await Expense.find();
+    const { clientId, description, amount, category, paymentMethod } = req.body;
+    const userId = req.userId;
 
-    return res.status(200).json({
-      message: "All expenses fetched successfully",
-      data: expenses,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to fetch expenses",
-      error: error.message,
-    });
-  }
-};
-
-export const newExpenseController = async (req, res) => {
-  try {
-    const { expenseName, amount } = req.body;
-
-    if (!expenseName || amount === undefined) {
+    if (!clientId || !description || !amount || !category) {
       return res.status(400).json({
-        message: "expenseName and amount are required",
+        message: "clientId, description, amount, and category are required",
       });
     }
 
-    if (Number(amount) <= 0) {
-      return res.status(400).json({
-        message: "amount must be greater than 0",
+    // Check for duplicate expense
+    const existingExpense = await Expense.findOne({ clientId });
+
+    if (existingExpense) {
+      return res.status(200).json({
+        message: "Expense already exists",
+        data: existingExpense,
       });
     }
 
     const expense = await Expense.create({
-      expenseName,
-      amount,
+      clientId,
+      userId,
+      description,
+      amount: Number(amount),
+      category,
+      paymentMethod: paymentMethod || "cash",
     });
 
     return res.status(201).json({
@@ -42,71 +35,96 @@ export const newExpenseController = async (req, res) => {
       data: expense,
     });
   } catch (error) {
-    return res.status(500).json({
-      message: "Failed to create expense",
-      error: error.message,
+    console.error("Expense creation error:", error);
+    return res.status(400).json({
+      message: error.message || "Failed to create expense",
     });
   }
 };
 
-export const updateExpenseController = async (req, res) => {
+export const getExpenseChanges = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { expenseName, amount } = req.body;
+    const { since } = req.query;
+    const query = { deletedAt: null };
 
-    if (!expenseName && amount === undefined) {
+    if (since) {
+      query.updatedAt = { $gt: new Date(since) };
+    }
+
+    const expenses = await Expense.find(query)
+      .populate("userId", "name clientId")
+      .sort({ updatedAt: 1 });
+
+    const created = [];
+    const updated = [];
+    const voided = [];
+
+    for (const expense of expenses) {
+      if (expense.voidedAt) {
+        voided.push({
+          clientId: expense.clientId,
+          voidedAt: expense.voidedAt,
+          voidReason: expense.voidReason,
+        });
+      } else if (since && expense.createdAt >= new Date(since)) {
+        created.push(expense);
+      } else {
+        updated.push(expense);
+      }
+    }
+
+    const lastExpense = expenses[expenses.length - 1];
+    const nextCursor = lastExpense ? lastExpense.updatedAt.toISOString() : new Date().toISOString();
+
+    return res.status(200).json({
+      data: {
+        created,
+        updated,
+        voided,
+      },
+      nextCursor,
+    });
+  } catch (error) {
+    console.error("Get expense changes error:", error);
+    return res.status(500).json({
+      message: error.message || "Failed to fetch expense changes",
+    });
+  }
+};
+
+export const voidExpense = async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { voidReason } = req.body;
+    const userId = req.userId;
+
+    const expense = await Expense.findOne({ clientId, deletedAt: null });
+
+    if (!expense) {
+      return res.status(404).json({
+        message: "Expense not found",
+      });
+    }
+
+    if (expense.voidedAt) {
       return res.status(400).json({
-        message: "Provide at least one field to update",
+        message: "Expense already voided",
       });
     }
 
-    const updateData = {};
+    expense.voidedAt = new Date();
+    expense.voidedBy = userId;
+    expense.voidReason = voidReason;
 
-    if (expenseName) updateData.expenseName = expenseName;
-    if (amount !== undefined) updateData.amount = amount;
-
-    const expense = await Expense.findByIdAndUpdate(id, updateData, {
-      new: true,
-    });
-
-    if (!expense) {
-      return res.status(404).json({
-        message: "Expense not found",
-      });
-    }
+    await expense.save();
 
     return res.status(200).json({
-      message: "Expense updated successfully",
-      data: expense,
+      message: "Expense voided successfully",
     });
   } catch (error) {
-    return res.status(500).json({
-      message: "Failed to update expense",
-      error: error.message,
-    });
-  }
-};
-
-export const deleteExpenseController = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const expense = await Expense.findByIdAndDelete(id);
-
-    if (!expense) {
-      return res.status(404).json({
-        message: "Expense not found",
-      });
-    }
-
-    return res.status(200).json({
-      message: "Expense deleted successfully",
-      data: expense,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Failed to delete expense",
-      error: error.message,
+    console.error("Void expense error:", error);
+    return res.status(400).json({
+      message: error.message || "Failed to void expense",
     });
   }
 };
