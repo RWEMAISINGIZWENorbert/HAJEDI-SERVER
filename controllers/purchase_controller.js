@@ -63,6 +63,12 @@ export const createPurchase = async (req, res) => {
         const purchaseCost = Number(item.purchaseCost) || product.purchaseCost;
         const totalItemCost = purchaseCost * quantity;
 
+         // Calculate actual stock increment based on purchase method
+        let stockIncrement = quantity;
+        if (product.purchaseMethod === "packet" || product.purchaseMethod === "crate") {
+          stockIncrement = quantity * product.unitsPerPackage;
+        }
+
         // Atomically increase stock
         await Product.findOneAndUpdate(
           {
@@ -70,7 +76,7 @@ export const createPurchase = async (req, res) => {
             deletedAt: null,
           },
           {
-            $inc: { quantityInStock: quantity },
+            $inc: { quantityInStock: stockIncrement  },
           },
           { session },
         );
