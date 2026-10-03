@@ -131,7 +131,7 @@ export const login = async (req, res) => {
 export const removeUser = async (req, res) => {
   try {
     const { id } = req.params;
-
+    let clientId = id;
     const deletedUser = await User.findOneAndUpdate(
       {
         clientId,
