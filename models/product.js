@@ -24,7 +24,7 @@ const productSchema = new mongoose.Schema(
 
     purchaseMethod: {
       type: String,
-      enum: ["packet", "crate", "unit", "kg"],
+      enum: ["packet", "crate", "unit", "kg", "sack"],
       required: true,
     },
 

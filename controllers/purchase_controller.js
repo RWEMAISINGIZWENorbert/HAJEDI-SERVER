@@ -65,7 +65,7 @@ export const createPurchase = async (req, res) => {
 
          // Calculate actual stock increment based on purchase method
         let stockIncrement = quantity;
-        if (product.purchaseMethod === "packet" || product.purchaseMethod === "crate") {
+        if (product.purchaseMethod === "packet" || product.purchaseMethod === "crate" || product.purchaseMethod === "sack") {
           stockIncrement = quantity * product.unitsPerPackage;
         }
 
