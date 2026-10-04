@@ -88,7 +88,7 @@ export const login = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ name });
+    const user = await User.findOne({ name, deletedAt: null });
 
     if (!user) {
       return res.status(404).json({
