@@ -234,3 +234,44 @@ export const voidSale = async (req, res) => {
     await session.endSession();
   }
 };
+
+export const payCredit = async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { newPaymentMethod } = req.body;
+
+    if (!newPaymentMethod || !["cash", "mobile"].includes(newPaymentMethod)) {
+      return res.status(400).json({
+        message: "Valid newPaymentMethod (cash or mobile) is required",
+      });
+    }
+
+    const sale = await Sale.findOneAndUpdate(
+      { 
+        clientId, 
+        deletedAt: null,
+        voidedAt: null 
+      },
+      {
+        paymentMethod: newPaymentMethod,
+      },
+      { new: true }
+    );
+
+    if (!sale) {
+      return res.status(404).json({
+        message: "Sale not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Payment method updated successfully",
+      data: sale,
+    });
+  } catch (error) {
+    console.error("Pay credit error:", error);
+    return res.status(400).json({
+      message: error.message || "Failed to update payment method",
+    });
+  }
+};

@@ -5,6 +5,7 @@ import {
   createSale,
   getSaleChanges,
   voidSale,
+  payCredit,
 } from "../controllers/sale_controller.js";
 
 import {
@@ -27,6 +28,7 @@ transactionRouter.use(authMiddleware);
 transactionRouter.post("/sales", createSale);
 transactionRouter.get("/sales/changes", getSaleChanges);
 transactionRouter.post("/sales/:clientId/void", voidSale);
+transactionRouter.post("/sales/:clientId/pay-credit", payCredit);
 
 // Purchase routes
 transactionRouter.post("/purchases", createPurchase);
